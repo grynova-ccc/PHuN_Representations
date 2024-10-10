@@ -3,7 +3,7 @@ This repository contains the code for the topological representations for materi
 
 ## Installation Guide
 
-This repository requires the installation of [CrystalNet.jl](https://coudertlab.github.io/CrystalNets.jl/dev/python/) python interface
+This repository requires the installation of the [CrystalNet.jl](https://coudertlab.github.io/CrystalNets.jl/dev/python/) python interface
 
 To install all other packages run:
 ```bash
