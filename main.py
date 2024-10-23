@@ -1,25 +1,39 @@
+import create_presistent_diagram as cp
 import get_topological_subnet_pd as tp
+import feature_extraction as fe
 import os
+import numpy as np
 
-# Specify the filename of the structure file (CIF format)
-# Example .cif
-filename = 'hMOF-6.cif'
+folder="dataset-1000-mofs/"
+directory = os.fsencode(folder)
 
-# Define the folder where the generated subnet persistence diagrams will be exported
-export_folder = 'subnets'
+export_folder="dataset-1000-mofs/"
+replication_factor=(1,1,1)
+wrap_pbc=False
+clustering='SingleNodes'
 
-# Define the replication factor for the supercell (1,1,1 indicates no replication)
-replication_factor = (1, 1, 1)
+files=[]
+for file in os.listdir(directory):
+ filename = os.fsdecode(file)
+ if filename.endswith(".cif"):
+  files.append(filename)
 
-# Specify whether to wrap the periodic boudary conditions (pbc)
-wrap_pbc = False
+dataset=[]
+for i in files:
+ print(f'{folder}{i}')
+ filename=f'{folder}{i}'
+ coord, _ =tp.get_point_cloud(filename, export_folder, clustering=clustering, supercell=None, wrap_pbc=False, view_structure=False)
+ dataset.append(coord)
 
-# Generate and save persistence diagrams for subnets based on different clustering  algorithms:
-# The persistence diagrams will be saved as PNGs in the export folder.
+print(dataset[0].shape)
 
-tp.get_persistence_diagrams(filename, export_folder, supercell=replication_factor, wrap_pbc=wrap_pbc, view_structure=False, save_png=True)
-tp.get_persistence_diagrams(filename, export_folder, 'AllNodes', supercell=replication_factor, wrap_pbc=wrap_pbc, view_structure=False, save_png=True)
-tp.get_persistence_diagrams(filename, export_folder, 'SingleNodes', supercell=replication_factor, wrap_pbc=wrap_pbc, view_structure=False, save_png=True)
-tp.get_persistence_diagrams(filename, export_folder, 'Standard', supercell=replication_factor, wrap_pbc=wrap_pbc, view_structure=False, save_png=True)
-tp.get_persistence_diagrams(filename, export_folder, 'PE', supercell=replication_factor, wrap_pbc=wrap_pbc, view_structure=False, save_png=True)
-tp.get_persistence_diagrams(filename, export_folder, 'PEM', supercell=replication_factor, wrap_pbc=wrap_pbc, view_structure=False, save_png=True)
+diagrams = cp.get_persistent_diagrams_Rips(dataset)
+
+image_features=fe.get_persistent_features(diagrams, files, export_folder, maxdim=2, coeff=2, pixel_size=1)
+print(len(image_features), len(image_features[0]))
+
+image_features = np.array(image_features)
+
+np.save(f'image_features-{clustering}.npy', image_features)  
+print(image_features)
+

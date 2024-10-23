@@ -5,6 +5,11 @@ import matplotlib.pyplot as plt
 from ase.io import read, write
 from ase import Atoms
 from ase.visualize import view
+import numpy as np
+from ripser import Rips
+import matplotlib.pyplot as plt
+from persim import plot_diagrams, PersistenceImager
+import os
 
 #Extract coordinates and periodic boudary conditions (PBC) from VTF as numpy arrays
 def extract_coordinates_from_VTF(filename, supercell=None, wrap_pbc=False):
@@ -51,7 +56,6 @@ def extract_coordinates_from_VTF(filename, supercell=None, wrap_pbc=False):
     else:
         return create_supercell(coordinates, pbc, supercell), pbc
 
-
 # Function to generate a supercell
 def create_supercell(coordinates, pbc, replication_factors):
     
@@ -80,7 +84,7 @@ def create_supercell(coordinates, pbc, replication_factors):
     supercell_coordinates = np.unique(supercell_coordinates, axis=0)
     return supercell_coordinates
 
-# Function to create an ASE Atoms object from the supercell coordinates
+# Visulize supercell coordinates using ASE viewer
 def create_ase_structure(coordinates, pbc, view_structure=False):
     
     # Uses Zn atom as a "dummy" atom to visulize coordinates
@@ -90,80 +94,30 @@ def create_ase_structure(coordinates, pbc, view_structure=False):
        view(atoms)
     return atoms
 
-#Get persistance diagrams using dionysus
-def get_persistent_homology(coordinates):
- 
-    alpha_shape= diode.fill_alpha_shapes(coordinates,True)
-    f = d.Filtration(alpha_shape)
-    m = d.homology_persistence(f)
-    dmg=d.init_diagrams(m, f)
 
-    return dmg
+def get_persistent_diagrams_Rips(dataset, maxdim=2, coeff=2):
 
-#Converts dionysus output to an array
-#Taken from moleculatda
-def diagrams_to_arrays(dgms):
+    rips = Rips(maxdim=maxdim, coeff=coeff)
+    all_diagrams = []
+
+    for idx, data in enumerate(dataset):
+        print(f"Processing array {idx + 1}/{len(dataset)} with shape {data.shape}")
+        dgms = rips.fit_transform(data)
         
-        """Convert persistence diagram objects to persistence diagram arrays."""
-        dgm_dtype = np.dtype([("birth", "f4"), ("death", "f4"), ("data", "u4")])
-        dgm_arrays = {
-                f"dim{dim}": np.array([(np.sqrt(dgm[i].birth), np.sqrt(dgm[i].death), dgm[i].data) for i in range(len(dgm))]
-                    if dgm
-                    else [],
-                     dtype=dgm_dtype,)
-                for dim, dgm in enumerate(dgms)}
-        return dgm_arrays
+        H0_dgm = dgms[0]
+        H1_dgm = dgms[1]
+
+        # In cases were H2 doesn't exist, a numpy array of zeros is created
+        H2_dgm = dgms[2] if len(dgms) > 2 else np.array([[0, 0]])  
+        all_diagrams.append((H0_dgm, H1_dgm, H2_dgm))
+        print(f"H0: {len(H0_dgm)} points, H1: {len(H1_dgm)} points, H2: {len(H2_dgm)} points")
+
+    return all_diagrams
 
 
-#Plots persistance diagrams
-#Taken from moleculatda
-import os
-
-def plot_pds(dgm_1d, dgm_2d,clustering, file_basename, save_png=None):
-    """Plot persistence diagrams here for visualization, example includes 1D and 2D.
-
-    Args:
-        dgm_1d, dgm_2d: 1d and 2d persistence diagrams
-        save_png: The filename to save the plot (without extension). If None, plot is not saved.
-    """
-
-    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10, 4))
-    
-    # Set the main title for the entire figure
-    fig.suptitle(f'{clustering}_{file_basename}', fontsize=16)
-
-    # 1D persistence diagram
-    axes[0].scatter(dgm_1d["birth"], dgm_1d["death"])
-    axes[0].plot([0, np.max(dgm_1d["death"])], [0, np.max(dgm_1d["death"])])
-    axes[0].set_xlabel("Birth")
-    axes[0].set_ylabel("Death")
-    axes[0].set_title("1D persistence diagram")
-    
-    # 2D persistence diagram
-    axes[1].scatter(dgm_2d["birth"], dgm_2d["death"])
-    axes[1].plot([0, np.max(dgm_2d["death"])], [0, np.max(dgm_2d["death"])])
-    axes[1].set_xlabel("Birth")
-    axes[1].set_ylabel("Death")
-    axes[1].set_title("2D persistence diagram")
 
 
-    if save_png:
-        # Check if the directory exists
-        save_dir = os.path.dirname(save_png)
-        if save_dir and not os.path.exists(save_dir):
-            print(f"Directory {save_dir} does not exist. Creating it...")
-            os.makedirs(save_dir)
 
-        # Try saving the plot and handle errors
-        try:
-            plt.savefig(f'{save_png}.png')
-            print(f"Saving plot to {save_png}.png")
-            plt.close(fig)  # Close the figure after saving
-            return f'Plot saved to {save_png}.png'
-        except Exception as e:
-            print(f"Error saving plot: {e}")
-            return f"Failed to save plot: {e}"
-    else:
-        plt.show()  # Show plot if save_png is not provided
-        return 'Plot displayed, not saved'
+
+
 
