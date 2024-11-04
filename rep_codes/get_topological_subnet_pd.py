@@ -1,4 +1,4 @@
-import create_presistent_diagram as cp
+import rep_codes.create_presistent_diagram as cp
 import numpy as np
 from ase.visualize import view
 import juliacall
@@ -7,11 +7,13 @@ import os
 jl = juliacall.newmodule("TopologyforMOFs") # put whatever name here
 jl.seval("using CrystalNets")
 
-def get_persistence_diagrams(filename, export_folder, clustering='input', supercell=None, wrap_pbc=False, view_structure=False, save_png=False):
-    
-    # Validate inputs
+def get_point_cloud(filename, export_folder, clustering='input', supercell=None, wrap_pbc=False, view_structure=False):
+
+    # Check that .cif exist
     if not os.path.isfile(filename):
         raise FileNotFoundError(f"File '{filename}' not found.")
+    
+    # Create export_folder if it does not exist
     if not os.path.isdir(export_folder):
         os.makedirs(export_folder)
     
@@ -59,15 +61,19 @@ def get_persistence_diagrams(filename, export_folder, clustering='input', superc
         jl.determine_topology(filename, options)
         vtf_file = f"{export_folder}/{export_folder}/subnet_{clustering}_{file_basename}_1.vtf"
 
-    
-    
-    
     # Extract coordinates and periodic boundary conditions (PBC)
     coordinates, pbc = cp.extract_coordinates_from_VTF(vtf_file, supercell, wrap_pbc)
     
     # Create ASE structure
     atoms = cp.create_ase_structure(coordinates, pbc, view_structure)
+
+    return coordinates, pbc
+
+def get_presistent_diagrams(filename, export_folder, clustering='input', save_png=False):
     
+    # Construct vtf file path
+    file_basename = os.path.basename(filename)[:-4]  
+
     # Generate persistence homology
     dmg = cp.get_persistent_homology(coordinates)
     
