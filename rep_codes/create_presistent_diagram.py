@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 from persim import plot_diagrams, PersistenceImager
 import os
 import pickle
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
 #Extract coordinates and periodic boudary conditions (PBC) from VTF as numpy arrays
 def extract_coordinates_from_VTF(filename, supercell=None, wrap_pbc=False):
     with open(filename, 'r') as file:
@@ -95,8 +97,23 @@ def create_ase_structure(coordinates, pbc, view_structure=False):
        view(atoms)
     return atoms
 
-def get_persistent_diagrams_Rips(dataset, maxdim=2, coeff=2, checkpoint_path="checkpoint.pkl", resume=False):
+def process_single_data(data, maxdim=2, coeff=2):
+    """
+    Process a single dataset element and return its persistent diagrams.
+    """
+    rips = Rips(maxdim=maxdim, coeff=coeff)
+    dgms = rips.fit_transform(data)
 
+    H0_dgm = dgms[0][:-1]  # Remove infinite value in H0
+    H1_dgm = dgms[1]
+    H2_dgm = dgms[2] if len(dgms) > 2 else np.array([[0, 0]])
+
+    return (H0_dgm, H1_dgm, H2_dgm)
+
+def get_persistent_diagrams_Rips(dataset, maxdim=2, coeff=2, checkpoint_path="checkpoint.pkl", resume=False, num_workers=4, batch_size=10):
+    """
+    Process a dataset to compute persistent diagrams in parallel with checkpointing.
+    """
     # Initialize or load from checkpoint
     if resume and os.path.exists(checkpoint_path):
         with open(checkpoint_path, "rb") as f:
@@ -109,29 +126,28 @@ def get_persistent_diagrams_Rips(dataset, maxdim=2, coeff=2, checkpoint_path="ch
         start_idx = 0
         print("Starting from scratch.")
 
-    # Initialize Rips
-    rips = Rips(maxdim=maxdim, coeff=coeff)
+    # Process dataset in parallel with batches
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        futures = []
+        for idx in range(start_idx, len(dataset)):
+            data = dataset[idx]
+            print(f"Queuing array {idx + 1}/{len(dataset)} with shape {data.shape}")
+            futures.append(executor.submit(process_single_data, data, maxdim, coeff))
 
-    # Process dataset with checkpointing
-    for idx in range(start_idx, len(dataset)):
-        data = dataset[idx]
-        print(f"Processing array {idx + 1}/{len(dataset)} with shape {data.shape}")
+            # Process in batches
+            if (idx + 1) % batch_size == 0 or (idx + 1) == len(dataset):
+                # Collect results from completed futures
+                for future in as_completed(futures):
+                    all_diagrams.append(future.result())
 
-        dgms = rips.fit_transform(data)
-        
-        # Process diagrams
-        H0_dgm = dgms[0][:-1]  # Remove infinite value in H0
-        H1_dgm = dgms[1]
-        H2_dgm = dgms[2] if len(dgms) > 2 else np.array([[0, 0]])
-        
-        all_diagrams.append((H0_dgm, H1_dgm, H2_dgm))
-        print(f"H0: {len(H0_dgm)} points, H1: {len(H1_dgm)} points, H2: {len(H2_dgm)} points")
-
-        # Save checkpoint after each iteration
-        checkpoint_data = {"all_diagrams": all_diagrams, "last_index": idx}
-        with open(checkpoint_path, "wb") as f:
-            pickle.dump(checkpoint_data, f)
-            print(f"Checkpoint saved at array {idx + 1}.")
+                # Save checkpoint
+                checkpoint_data = {"all_diagrams": all_diagrams, "last_index": idx}
+                with open(checkpoint_path, "wb") as f:
+                    pickle.dump(checkpoint_data, f)
+                    print(f"Checkpoint saved at array {idx + 1}.")
+                
+                # Clear futures for the next batch
+                futures.clear()
 
     print("Processing complete.")
     return all_diagrams

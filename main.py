@@ -20,21 +20,24 @@ for file in os.listdir(directory):
  if filename.endswith(".cif"):
   files.append(filename)
 
-files=files[:1000]
 dataset=[]
 for i in files:
  print(f'{folder}{i}')
  filename=f'{folder}{i}'
- coord, _ =tp.get_point_cloud(filename, export_folder, clustering=clustering, supercell=None, wrap_pbc=False, view_structure=False)
+ coord, _ = tp.get_point_cloud(filename, export_folder, clustering=clustering, supercell=None, wrap_pbc=False, view_structure=False)
  dataset.append(coord)
  
-diagrams = cp.get_persistent_diagrams_Rips(dataset)
+diagrams = cp.get_persistent_diagrams_Rips(dataset, maxdim=2, coeff=2, checkpoint_path="checkpoint.pkl", resume=True, num_workers=4, batch_size=10)
 
-with open(f'diagrams_{export_folder[:-1]}_{clustering}.pkl', "wb") as file:
-    pickle.dump(diagrams, file)
+#with open(f'diagrams_{export_folder[:-1]}_{clustering}.pkl', "wb") as file:
+ #   pickle.dump(diagrams, file)
 
-#with open(f'diagrams_{export_folder[:-1]}_{clustering}.pkl', "rb") as file:
- #   diagrams = pickle.load(file)
+#with open(f'checkpoint.pkl', "rb") as file:
+ #   checkpoint = pickle.load(file)
+ #   diagrams = checkpoint["all_diagrams"]
+
+
+#print(len(diagrams))
 
 print(f'Saved persistent diagrams to diagrams_{export_folder[:-1]}_{clustering}.pkl')
 
