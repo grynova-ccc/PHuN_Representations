@@ -40,7 +40,6 @@ For a complete example of usage, see the Example Usage section below.
 ### Initial setup 
 
 ```python
-import os
 # Folder containing .cif files to process
 folder = "test-cif"
 
@@ -69,6 +68,7 @@ dataset, top_nets, names = cp.build_dataset(files, export_folder, clustering)
 
 ### Compute persistent diagrams
 ```python
+import phun_reps.calc_presistent_diagram as cp
 # Compute persistent homology diagrams from the dataset
 diagrams_tuples = cp.get_persistent_diagrams(
     dataset, names, top_nets,
@@ -78,6 +78,7 @@ diagrams_tuples = cp.get_persistent_diagrams(
 ```
 ### Extract persistent image features from diagrams using persim
 ```python
+import phun_reps.feature_extraction as fe
 image_features_df = fe.get_persistent_image_features(
     diagrams_tuples,
     output_image_size=(30, 30),
@@ -88,6 +89,7 @@ image_features_df = fe.get_persistent_image_features(
 ### Extract statistical features from persistent diagrams
 
 ```python
+import phun_reps.feature_extraction as fe
 stats_features_df = fe.get_persistent_stats_features(diagrams_tuples)
 ```
 
