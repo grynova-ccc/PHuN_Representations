@@ -23,7 +23,7 @@ and will automatically install its dependencies:
 
 * Topological nets derived from CrystalNets.jl.
 
-It integrates with [Ripser](https://ripser.scikit-tda.org/en/latest/) to compute persistence diagrams and can extract topological descriptors for machine learning.
+It integrates with [Ripser](https://ripser.scikit-tda.org/en/latest/) to compute persistence diagrams and can extract topological descriptors that can be used in machine learning.
 
 **PHuN** can be used to:
 
