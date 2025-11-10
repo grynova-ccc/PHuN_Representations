@@ -54,6 +54,7 @@ clustering = 'SingleNodes'
 
 ### Load .cif files
 ```python
+import phun_reps.calc_presistent_diagram as cp
 # Load .cif files from the specified folder
 files = cp.get_cif_files(folder)
 ```
@@ -61,6 +62,8 @@ files = cp.get_cif_files(folder)
 ### Build dataset
 
 ```python
+
+import phun_reps.calc_presistent_diagram as cp
 # Build dataset:
 # - Uses CrystalNets.jl to identify topological nets based on clustering option. If ACPH features are wanted, set clustering to 'input'
 dataset, top_nets, names = cp.build_dataset(files, export_folder, clustering)
