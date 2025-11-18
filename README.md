@@ -1,4 +1,4 @@
-# PHuN representations
+# PHuN Representations
 This is a fun and computationally efficient Python package for computing persistent homology using nets (PHuN) representations of nanoporous materials. It enables the extraction of topological information for use as machine learning descriptors.
 
 ## Installation Guide
@@ -79,7 +79,7 @@ diagrams_tuples = cp.get_persistent_diagrams(
     save_file=f"diagrams_{folder}_{clustering}.pkl"
 )
 ```
-### Extract persistent image features from diagrams using persim
+### Extract persistent image features from diagrams using (Persim)[https://persim.scikit-tda.org/en/latest/reference/index.html]
 ```python
 import phun_reps.feature_extraction as fe
 image_features_df = fe.get_persistent_image_features(
