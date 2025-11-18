@@ -31,7 +31,7 @@ It integrates with [Ripser](https://ripser.scikit-tda.org/en/latest/) to compute
 
 * Visualize persistence diagrams/images
 
-* Extract vectorized topological descriptors (persistent image features and persistent statistics features
+* Extract vectorized topological descriptors (persistent image features or persistent statistics features)
 
 For a complete example of usage, see the Example Usage section below.
 
@@ -79,7 +79,7 @@ diagrams_tuples = cp.get_persistent_diagrams(
     save_file=f"diagrams_{folder}_{clustering}.pkl"
 )
 ```
-### Extract persistent image features from diagrams using (Persim)[https://persim.scikit-tda.org/en/latest/reference/index.html]
+### Extract persistent image features from diagrams using [Persim](https://persim.scikit-tda.org/en/latest/reference/index.html)
 ```python
 import phun_reps.feature_extraction as fe
 image_features_df = fe.get_persistent_image_features(
