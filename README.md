@@ -1,5 +1,5 @@
 # PHuN Representations
-This is a fun and computationally efficient Python package for computing persistent homology using nets (PHuN) representations of nanoporous materials. It enables the extraction of topological information for use as machine learning descriptors.
+This is a fun and computationally efficient Python package for computing persistent homology using nets (PHuN) representations of framework materials. It enables the extraction of topological information for use as machine learning descriptors.
 
 ## Installation Guide
 
