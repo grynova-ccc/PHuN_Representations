@@ -1,211 +1,400 @@
 import numpy as np
-import os
-from ase.visualize import view
+from pathlib import Path
 from ase import Atoms
+from ase.io import read
 import juliacall
 
 
-# Initialize Julia module
-jl = juliacall.newmodule("TopologyforMOFs")
-jl.seval("using CrystalNets")
-jl.CrystalNets.toggle_warning(False)
-jl.CrystalNets.toggle_export(False)
-
-
-def create_supercell(coordinates, pbc, replication_factors):
+def cubic_cutout_from_atoms(positions, cell, size, min_size=-5.0, margin=2):
     """
-    Generate a supercell by replicating the input coordinates along the lattice vectors.
-    
-    Parameters:
-        coordinates (np.ndarray): Atomic coordinates of the unit cell.
-        pbc (np.ndarray): Periodic boundary condition vectors (cell lengths).
-        replication_factors (tuple): Number of repetitions along each axis (nx, ny, nz).
-    
-    Returns:
-        np.ndarray: Coordinates of the expanded supercell.
-    """
-    lattice_vectors = np.array([
-        [pbc[0], 0, 0],
-        [0, pbc[1], 0],
-        [0, 0, pbc[2]]
-    ])
+    Generate a cubic cutout of periodically repeated atomic positions.
 
-    nx, ny, nz = replication_factors
-    supercell_coords = [
-        coord + i * lattice_vectors[0] + j * lattice_vectors[1] + k * lattice_vectors[2]
-        for i in range(nx)
-        for j in range(ny)
-        for k in range(nz)
-        for coord in coordinates
-    ]
+    This function tiles a periodic structure in all directions and extracts
+    only the atoms that fall inside a cubic region defined by:
+        [min_size, size] in x, y, and z.
 
-    return np.unique(np.array(supercell_coords), axis=0)
+    Parameters
+    ----------
+    positions : np.ndarray
+        Atomic Cartesian coordinates with shape (N, 3).
 
+    cell : np.ndarray
+        3x3 lattice matrix describing the unit cell vectors.
 
-def create_ase_structure(coordinates, pbc, view_structure=False):
-    """
-    Create an ASE Atoms object from coordinates and periodic boundary conditions.
-    
-    Parameters:
-        coordinates (np.ndarray): Atomic positions.
-        pbc (np.ndarray): Lattice vectors or cell lengths.
-        view_structure (bool): If True, open ASE GUI to visualize the structure.
-    
-    Returns:
-        Atoms: ASE Atoms object representing the structure.
-    """
-    atoms = Atoms(positions=coordinates, symbols='Zn' * len(coordinates), pbc=True, cell=pbc[:3])
-    if view_structure:
-        view(atoms)
-    return atoms
+    size : float
+        Upper bound of the cubic region.
 
-def extract_coordinates_from_VTF(filename, supercell=None, wrap_pbc=False):
-    """
-    Extract atomic coordinates and periodic boundary conditions from a VTF file.
-    
-    Parameters:
-        filename (str): Path to the VTF file.
-        supercell (tuple or None): Optional replication factors to create a supercell.
-        wrap_pbc (bool): If True, filter coordinates to lie within the unit cell.
-    
-    Returns:
-        tuple: (coordinates, pbc) as numpy arrays. Coordinates may be expanded if supercell is provided.
+    min_size : float, optional
+        Lower bound of the cubic region.
+        Default is -5.0.
+
+    margin : int, optional
+        Extra number of unit-cell repetitions added in each direction
+        to ensure the cube is fully covered.
+        Default is 2.
+
+    Returns
+    -------
+    np.ndarray
+        Cartesian coordinates inside the cubic cutout,
+        wrapped back into the range [0, size].
     """
 
-    try:
-        with open(filename, 'r') as file:
-            lines = file.readlines()
-    except FileNotFoundError:
-        return None
+    span = float(size) - float(min_size)
 
-    ordered_start = False
-    coordinates = []
-    pbc = None
+    if span <= 0:
+        raise ValueError("`size` must be greater than `min_size`.")
 
-    for line in lines:
-        line = line.strip()
-        if line.startswith('pbc'):
-            pbc = list(map(float, line.split()[1:]))
-        if line == 'ordered':
-            ordered_start = True
-            continue
-        if ordered_start:
-            try:
-                coords = list(map(float, line.split()))
-                coordinates.append(coords)
-            except ValueError:
-                break
+    lengths = np.linalg.norm(cell, axis=1)
 
-    coordinates = np.array(coordinates)
-    pbc = np.array(pbc) if pbc is not None else None
+    reps = [int(np.ceil(span / L)) + margin for L in lengths]
+    nx, ny, nz = reps
 
-    if wrap_pbc and pbc is not None:
-        coordinates = np.array([coord for coord in coordinates if all(0 <= coord[i] < pbc[i] for i in range(3))])
+    shifts = np.array(
+        [(i, j, k)
+         for i in range(-nx, nx + 1)
+         for j in range(-ny, ny + 1)
+         for k in range(-nz, nz + 1)],
+        dtype=float
+    )
 
-    if supercell is None:
-        return coordinates, pbc
-    else:
-        return create_supercell(coordinates, pbc, supercell), pbc
+    shift_cart = shifts @ cell
+
+    tiled_positions = (
+        positions[:, None, :] + shift_cart[None, :, :]
+    ).reshape(-1, 3)
+
+    mask = np.all(
+        (tiled_positions >= min_size) &
+        (tiled_positions <= size),
+        axis=1
+    )
+
+    cut_positions = tiled_positions[mask]
+
+    cut_positions -= np.floor(cut_positions / float(size)) * float(size)
+
+    return cut_positions
 
 
-def find_vtf_files(export_folder, clustering, file_basename):
+class PointCloudExtractor:
     """
-    Find all VTF files in the export folder matching a given clustering type and file basename.
-    
-    Parameters:
-        export_folder (str): Folder containing VTF files.
-        clustering (str): Clustering type used (e.g., 'SingleNodes').
-        file_basename (str): Base name of the original CIF file.
-    
-    Returns:
-        list: Paths to matching VTF files.
-    """
+    Extract point-cloud representations and topological information
+    from crystal structures using CrystalNets.jl.
 
-    vtf_files = []
-    search_path = os.path.join(export_folder, export_folder)
-    if not os.path.exists(search_path):
-        print(f"Error: Directory '{search_path}' does not exist.")
-        return []
-
-    search_pattern = f"subnet_{clustering}_{file_basename}_"
-    for root, _, files in os.walk(search_path):
-        for file in files:
-            if file.startswith(search_pattern) and file.endswith(".vtf"):
-                vtf_files.append(os.path.join(root, file))
-    return vtf_files
-
-
-def get_point_cloud(filename, export_folder, clustering='input', supercell=None, wrap_pbc=False, structure="MOF"):
-    """
-    Extract atomic coordinates and PBCs from VTF files via CrystalNets.jl.
-
-    Parameters:
-        filename (str): Input CIF file.
-        export_folder (str): Folder to save outputs.
-        clustering (str): Topology clustering ('input', 'SingleNodes', 'Standard', 'AllNodes', 'PE', 'PEM').
-        supercell (tuple|None): Supercell replication.
-        wrap_pbc (bool): Wrap coordinates by PBC.
-        structure (str): 'MOF' or 'Zeolite'.
-
-    Returns:
-        coordinates (np.ndarray), pbc (np.ndarray), result (str|None)
+    This class provides:
+    - Julia environment initialization
+    - CrystalNets configuration handling
+    - Point extraction for ACPH and PHuN workflows
+    - Topology determination
+    - Supercell/cutout generation
     """
 
-    if not os.path.isfile(filename):
-        raise FileNotFoundError(f"File '{filename}' not found.")
-    if not os.path.isdir(export_folder):
-        os.makedirs(export_folder)
+    def __init__(self):
+        """
+        Initialize the Julia runtime and CrystalNets environment.
+        """
 
-    file_basename = os.path.basename(filename)[:-4]
+        # Create isolated Julia module namespace
+        self.jl = juliacall.newmodule("TopologyforMOFs")
 
-    structure_types = {'MOF': jl.StructureType.MOF, 'Zeolite': jl.StructureType.MOF}
-    if structure not in structure_types:
-        raise ValueError("Invalid structure. Options: 'MOF', 'Zeolite'")
+        # Initialize Julia dependencies
+        self._init_julia()
 
-    clustering_options = {
-        'SingleNodes': jl.Clustering.SingleNodes,
-        'Standard': jl.Clustering.Standard,
-        'AllNodes': jl.Clustering.AllNodes,
-        'PE': jl.Clustering.PE,
-        'PEM': jl.Clustering.PEM
-    }
+        # Load custom Julia helper functions
+        self._load_helper_script()
 
-    if clustering == 'input':
-        options = jl.CrystalNets.Options(
-            structure=structure_types[structure],
-            export_input=export_folder,
-            export_subnets=False
-        )
-        jl.determine_topology(filename, options)
-        vtf_file = [f"{export_folder}/{export_folder}/{clustering}_{file_basename}.vtf"]
-        result = None
-    elif clustering in clustering_options:
-        options = jl.CrystalNets.Options(
-            structure=structure_types[structure],
-            clusterings=[clustering_options[clustering]],
-            export_input=False,
-            export_subnets=export_folder
-        )
-        result = str(jl.determine_topology(filename, options)).split(": ", 1)[1]
-    
-        vtf_file = find_vtf_files(export_folder, clustering, file_basename)
-    else:
-        raise ValueError(f"Invalid clustering option: {clustering}")
+        # Cache commonly used CrystalNets constants
+        self._init_constants()
 
-    # Extract coordinates from all VTF files
-    coordinates = None
-    pbc = None
-    if not vtf_file:
-        print("No VTF files found.")
-    else:
-        for file in vtf_file:
-            coord, pbc_file = extract_coordinates_from_VTF(file, supercell, wrap_pbc)
-            if coordinates is None:
-                coordinates = coord
+    def _init_julia(self):
+        """
+        Configure the Julia environment and import required packages.
+        """
+
+        # Activate a preconfigured Julia environment
+        self.jl.seval("""
+                import Pkg
+                Pkg.activate("/rds/projects/k/kirkvocm-topological-reps/julia_cache/environments/v1.10")
+                import PeriodicGraphs
+                """)
+
+        # Load CrystalNets and related packages
+        self.jl.seval("using CrystalNets")
+        self.jl.seval("import PeriodicGraphs")
+        self.jl.seval("import PeriodicGraphEmbeddings")
+
+        # Disable CrystalNets warnings and export messages
+        self.jl.seval("CrystalNets.toggle_warning(false)")
+        self.jl.seval("CrystalNets.toggle_export(false)")
+
+    def _load_helper_script(self):
+        """
+        Load supplementary Julia utilities from a local script.
+        """
+
+        # Locate helper script in same directory as this Python file
+        helper_path = Path(__file__).with_name("crystalnet_utilities.jl")
+
+        # Include helper functions into Julia session
+        self.jl.include(str(helper_path))
+
+    def _init_constants(self):
+        """
+        Cache commonly used CrystalNets enum-like constants.
+        """
+
+        # Available structure types
+        self.structure_types = {
+            name: self.jl.seval(f"CrystalNets.StructureType.{name}")
+            for name in ["MOF", "Zeolite"]
+        }
+
+        # Available clustering strategies
+        self.clustering_options = {
+            name: self.jl.seval(f"CrystalNets.Clustering.{name}")
+            for name in ["SingleNodes", "Standard", "AllNodes", "PE", "PEM", "Auto"]
+        }
+
+    def build_options(self, **kwargs):
+        """
+        Build a CrystalNets.Options object from Python-friendly arguments.
+
+        String representations for:
+        - structure
+        - clusterings
+
+        are automatically converted into CrystalNets constants.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments passed to CrystalNets.Options.
+
+        Returns
+        -------
+        CrystalNets.Options
+            Configured CrystalNets options object.
+        """
+
+        kwargs = dict(kwargs)
+
+        # Convert structure string into CrystalNets enum
+        if "structure" in kwargs and isinstance(kwargs["structure"], str):
+            kwargs["structure"] = self.structure_types[kwargs["structure"]]
+
+        # Normalize clustering argument into list format
+        if "clusterings" in kwargs:
+            clusterings = kwargs["clusterings"]
+
+            if not isinstance(clusterings, (list, tuple)):
+                clusterings = [clusterings]
+
+            # Convert string clusterings into CrystalNets enums
+            kwargs["clusterings"] = [ self.clustering_options[c] if isinstance(c, str) else c for c in clusterings]
+
+        return self.jl.CrystalNets.Options(**kwargs)
+
+    def get_ACPH_points(self, filename, supercell=None):
+        """
+        Extract atomic coordinates from a CIF file for ACPH processing.
+
+        Parameters
+        ----------
+        filename : str
+            Path to CIF structure file.
+
+        supercell : float or None, optional
+            If provided, generate a cubic periodic cutout.
+
+        Returns
+        -------
+        tuple
+            (coordinates, file_basename)
+        """
+        file_basename = Path(filename).stem
+        atoms = read(filename)
+        coords = np.asarray(atoms.get_positions(), dtype=float)
+        cell = np.asarray(atoms.get_cell().array, dtype=float)
+
+        # Optionally generate supercell cutout
+        if supercell is not None:
+            coords = self._apply_supercell(coords, cell, supercell)
+
+        return coords, file_basename
+
+    def get_PHuN_points(self, filename, options, supercell=None, subnet_mode="first"):
+        """
+        Extract topology-derived node coordinates using CrystalNets.
+
+        Parameters
+        ----------
+        filename : str
+            Path to CIF structure file.
+
+        options : CrystalNets.Options
+            CrystalNets configuration object.
+
+        supercell : float or None, optional
+            If provided, generate periodic cubic cutouts.
+
+        subnet_mode : str, optional
+            Controls handling of subnetworks:
+            - "first"    : use only first subnet
+            - "full"     : merge all subnet coordinates
+            - "separate" : return each subnet independently
+
+        Returns
+        -------
+        tuple
+            (coordinates, file_basename)
+        """
+
+        file_basename = Path(filename).stem
+
+        # Retrieve subnet coordinates and unit cells from Julia
+        coords_list, cell_list = self.jl.get_net_coords(filename, options)
+
+        # Convert Julia arrays into NumPy arrays
+        coords_list = [np.asarray(c, dtype=float) for c in coords_list]
+        cell_list = [np.asarray(c, dtype=float) for c in cell_list]
+
+        # Select how subnetworks should be handled
+        if subnet_mode == "first":
+            coords = coords_list[0]
+            cell = cell_list[0]
+
+        elif subnet_mode == "full":
+            coords = np.vstack(coords_list)
+            cell = cell_list[0]
+
+        elif subnet_mode == "separate":
+            coords = coords_list
+            cell = cell_list
+
+        else:
+            raise ValueError(
+                "subnet_mode must be 'first', 'full', or 'separate'"
+            )
+
+        # Apply periodic supercell expansion if requested
+        if supercell is not None:
+
+            if subnet_mode == "separate":
+                coords = [
+                    self._apply_supercell(c, cell_list[i], supercell)
+                    for i, c in enumerate(coords_list)
+                ]
             else:
-                coordinates = np.vstack((coordinates, coord))
-            pbc = pbc_file
+                coords = self._apply_supercell(coords, cell, supercell)
 
-    return coordinates, pbc, result
+        return coords, file_basename
 
+    def determine_topology(self, filename, options):
+        """
+        Determine the topology name for a structure.
+
+        Parameters
+        ----------
+        filename : str
+            Path to CIF structure file.
+
+        options : CrystalNets.Options
+            CrystalNets configuration object.
+
+        Returns
+        -------
+        str or None
+            Simplified topology name.
+        """
+
+        topo = self.jl.determine_topology(filename, options)
+
+        return self._simplify_topology_name(topo)
+
+    @staticmethod
+    def _extract_net_name(topo):
+        """
+        Extract topology name from CrystalNets output string.
+        """
+
+        topo_str = str(topo)
+
+        return topo_str.split(": ", 1)[1] if ": " in topo_str else topo_str
+
+    @staticmethod
+    def _simplify_topology_name(topo):
+        """
+        Simplify multiline topology output into a compact identifier.
+
+        Examples
+        --------
+        Single topology:
+            'pcu'
+
+        Multiple distinct topologies:
+            'pcu+dia'
+        """
+
+        if topo is None:
+            return None
+
+        topo_str = str(topo).strip()
+
+        lines = [
+            line.strip()
+            for line in topo_str.splitlines()
+            if ": " in line
+        ]
+
+        if not lines:
+            return topo_str
+        
+        names = [line.split(": ", 1)[1].strip() for line in lines]
+
+
+        unique_names = list(dict.fromkeys(names))
+
+        if len(unique_names) == 1:
+            return unique_names[0]
+
+        return "+".join(unique_names)
+
+    def _apply_supercell(self, coords, cell, supercell):
+        """
+        Generate a cubic periodic cutout from a set of coordinates. This is similar to how MolecularTDA generates supercells
+
+        Parameters
+        ----------
+        coords : np.ndarray
+            Cartesian coordinates.
+
+        cell : np.ndarray
+            Unit cell matrix.
+
+        supercell : float
+            Size of cubic cutout.
+
+        Returns
+        -------
+        np.ndarray
+            Coordinates inside periodic cubic region.
+        """
+
+        atoms = Atoms(
+            positions=coords,
+            symbols=["Zn"] * len(coords),
+            cell=cell,
+            pbc=True,
+        )
+
+        bounds = atoms.cell.array
+
+        mins = bounds.min(axis=0)
+        maxs = bounds.max(axis=0)
+
+        mask = np.all((coords >= mins) & (coords <= maxs), axis=1)
+        coords = coords[mask]
+
+        return cubic_cutout_from_atoms(coords, bounds, size=supercell, min_size=-3, margin=2)
 

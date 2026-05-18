@@ -1,67 +1,98 @@
+import os
+import pickle
 import phun_reps.calc_presistent_diagram as cp
 import phun_reps.feature_extraction as fe
-import pandas as pd
+import phun_reps.topology as tp
 
-# Folder containing .cif files to process
+# LOAD INPUT FILES
+
+# Folder containing .cif crystal structure files to process
 folder = "test-cif"
 
-# Folder where CrystalNets.jl outputs will be saved
-# Default folder is /tmp
-export_folder = "/tmp"
-
-# Clustering option for CrystalNets.jl
-# Determines how topological nets are identified. Default is 'SingleNodes'
-clustering = 'SingleNodes'
-
-# Load .cif files from the specified folder
 files = cp.get_cif_files(folder)
 
-# Build dataset:
-# - Uses CrystalNets.jl to identify topological nets based on clustering option. If ACPH features are wanted, set clustering to 'input'
-# - Extracts point cloud coordinates from CrystalNets output
-# Returns:
-# - dataset: point cloud data for each CIF
-# - top_nets: identified topological nets
-# - names: file names corresponding to each dataset entry
-dataset, top_nets, names = cp.build_dataset(files, export_folder, clustering)
+# Initate point cloud extraction. This class handles the conversion of .cif files to point clouds and topological net identification. 
+# This is used to generate the point cloud representations for persistent homology and to determine the topological net labels for each structure.
 
-# Compute persistent homology diagrams from the dataset
-# - maxdim=2: compute up to 2-dimensional features
-# - coeff=2: field coefficient for homology computations
-# - save_file: optional pickle file to store computed diagrams
-diagrams_tuples = cp.get_persistent_diagrams(
-    dataset, names, top_nets,
-    maxdim=2, coeff=2,
-    save_file=f"diagrams_{folder}_{clustering}.pkl"
+extractor = tp.PointCloudExtractor()
+
+# Build CrystalNets.jl topology analysis options
+options = extractor.build_options(
+    structure="MOF",              # Structure type
+    clusterings=["SingleNodes"],  # Clustering strategy
+    export_input=False,           # Do not export CrystalNets input
+    export_net=False,             # Do not export identified net files
+    export_subnets=False,         # Do not export subnet files
+    detect_organiccycles=True     # Detect organic cycles/rings
 )
 
-# Plots persistent diagrams and save plots to folder "test_images"
-cp.plot_persistent_diagrams(diagrams_tuples, "test_images")
+# Lists for storing persistent diagrams
+diagrams_list = []
+for file in files:
 
-# Extract persistent image features from diagrams using persim
-# - output_image_size: size of the images
-# - savefig, if True: save generated images. Default is False
-# - export_folder: folder to save images. Default is None
-# Returns:
-# - Dataframe of persistent image features for 1d and 2d persistent diagrams
-# - If savefig=True, persistent images are saved to export_folder
+    # Generate point cloud representation used for persistent homology
 
+    dataset, name = extractor.get_PHuN_points(file,options=options, supercell=None, subnet_mode="full")
+
+    # Determine topological net
+    top_net = extractor.determine_topology( file, options=options)
+
+    # Calculate persistent homology diagrams
+    diagrams = cp.calc_persistent_diagrams(
+        dataset,
+        file=name,
+        top_net=top_net,
+        maxdim=2,              # Compute H0, H1, and H2
+        coeff=2,               # Z2 coefficients
+        complex_type="alpha",  # Alpha complex
+    )
+
+    # Store diagrams for later processing
+    diagrams_list.append(diagrams)
+
+# Save all persistent diagrams as a pickle file
+cp.save_diagrams("persistent_diagrams.pkl", diagrams_list)
+
+# Export persistent diagram figures
+cp.plot_persistent_diagrams(diagrams_list, export_folder="diagrams")
+
+# Extract filenames associated with each diagram
+filenames = [d["filename"] for d in diagrams_list]
+
+# Extract topological net labels
+nets = [d.get("net") for d in diagrams_list]
+
+# Compute persistent image representations and flatten into features
 image_features_df = fe.get_persistent_image_features(
-    diagrams_tuples,
-    output_image_size=(30, 30),
-    savefig=True,
-    export_folder="test_images"
+    diagrams_list,
+    output_size=(30, 30),     # Persistent image resolution
+    savefig=True,             # Save persistent image figures
+    export_folder="test_images",
 )
 
-# Save persistent image features to CSV
-image_features_df.to_csv(f'image_features_{folder}_{clustering}.csv', index=False)
-print(f'Saved image features to image_features_{folder}_{clustering}.csv')
+# Add column with filenames to image features dataframe
+image_features_df["Name"] = filenames
 
-# Extract statistical features from persistent diagrams
-# - Calculates the following persistent statsitics features:
-#   maximum persistence, minimum persistence, mean persistence, variance, and total number of points for 0d, 1d, and 2d persistence diagrams
-stats_features_df = fe.get_persistent_stats_features(diagrams_tuples)
+# Add topology labels if available
+if any(net is not None for net in nets):
+    image_features_df["Topological Net"] = nets
 
-# Save persistent statistics features to CSV
-stats_features_df.to_csv(f'stats_features_{folder}_{clustering}.csv', index=False)
-print(f'Saved statistical features to stats_features_{folder}_{clustering}.csv')
+# Export persistent image feature table
+image_features_df.to_csv("image_features.csv",index=False)
+
+print("Saved image features to image_features.csv")
+
+# Compute statistical descriptors from persistence diagrams
+stats_features_df = fe.get_persistent_stats_features(diagrams_list)
+
+# Add column with filenames to statistical features dataframe
+stats_features_df["Name"] = filenames
+
+# Add topology labels if available
+if any(net is not None for net in nets):
+    stats_features_df["Topological Net"] = nets
+
+# Export statistical feature table
+stats_features_df.to_csv( "stats_features.csv", index=False)
+
+print("Saved statistical features to stats_features.csv")

@@ -1,22 +1,29 @@
-import numpy as np
 import os
 import pickle
-from ripser import Rips
-import phun_reps.topology as tp
+import numpy as np
 import matplotlib.pyplot as plt
+import gudhi as gd
+from ripser import Rips
+
 
 def get_cif_files(folder, limit=None):
     """
-    Return a list of .cif files in the specified folder.
+    Retrieve all CIF files from a directory.
 
-    Parameters:
-        folder (str): Directory to search for .cif files.
-        limit (int or None): Maximum number of files to return; None returns all files.
+    Parameters
+    ----------
+    folder : str
+        Path to directory containing .cif files.
 
-    Returns:
-        list: Paths to .cif files.
+    limit : int or None, optional
+        Maximum number of files to return.
+        If None, all files are returned.
+
+    Returns
+    -------
+    list
+        List of CIF file paths.
     """
-
     directory = os.fsencode(folder)
     cif_files = [
         os.path.join(folder, os.fsdecode(f))
@@ -27,169 +34,212 @@ def get_cif_files(folder, limit=None):
         return cif_files
     return cif_files[:limit]
 
-def process_single_data(data, filename=None, net=None, maxdim=2, coeff=2):
+
+def get_persistent_diagrams(dataset, maxdim=2, coeff=2, complex_type="alpha"):
     """
-    Compute persistence diagrams for a single point cloud dataset.
+    Compute persistence diagrams from a point cloud.
 
-    Parameters:
-        data (np.ndarray): Point cloud coordinates.
-        filename (str, optional): Name of the source file.
-        net (str, optional): Topological net label.
-        maxdim (int): Maximum homology dimension.
-        coeff (int): Field coefficient for persistent homology.
+    Supports:
+    - Alpha complexes (via GUDHI)
+    - Vietoris-Rips complexes (via ripser)
 
-    Returns:
-        tuple: D0, D1, D2 persistence diagrams, filename, and net.
+    Parameters
+    ----------
+    dataset : np.ndarray
+        Point cloud coordinates with shape (N, D).
+
+    maxdim : int, optional
+        Maximum homology dimension to compute.
+        Default is 2.
+
+    coeff : int, optional
+        Coefficient field for homology computations.
+        Default is 2.
+
+    complex_type : str, optional
+        Type of simplicial complex:
+            - "alpha"
+            - "rips"
+
+    Returns
+    -------
+    list
+        List containing:
+            [D0_diagram, D1_diagram, D2_diagram]
     """
-    rips = Rips(maxdim=maxdim, coeff=coeff, verbose=False)
-    dgms = rips.fit_transform(data)
 
-    D0_dgm = dgms[0][:-1]  # Remove infinite value in H0
-    D1_dgm = dgms[1]
-    D2_dgm = dgms[2] if len(dgms) > 2 else np.array([[0, 0]])
+    if complex_type == "alpha":
+        ac = gd.AlphaComplex(points=dataset, precision="exact")
+        st = ac.create_simplex_tree(max_alpha_square=float("inf"))
+        st.persistence(homology_coeff_field=maxdim)
 
-    return D0_dgm, D1_dgm, D2_dgm, filename, net
+        dgms = [st.persistence_intervals_in_dimension(k) for k in range(st.dimension() + 1)]
+
+        D0_dgm = dgms[0][~np.isinf(dgms[0]).any(1)]
+        D1_dgm = dgms[1][~np.isinf(dgms[1]).any(1)]
+        D2_dgm = dgms[2][~np.isinf(dgms[2]).any(1)] if len(dgms) > 2 else np.array([[0, 0]])
+
+    elif complex_type == "rips":
+        rips = Rips(maxdim=maxdim, coeff=coeff, verbose=False)
+        dgms = rips.fit_transform(dataset)
+
+        D0_dgm = dgms[0][~np.isinf(dgms[0]).any(1)]
+        D1_dgm = dgms[1][~np.isinf(dgms[1]).any(1)]
+        D2_dgm = dgms[2][~np.isinf(dgms[2]).any(1)] if len(dgms) > 2 else np.array([[0, 0]])
+
+    else:
+        raise ValueError("Complex type options: 'alpha' or 'rips'")
+
+    print(f"H0: {len(D0_dgm)}, H1: {len(D1_dgm)}, H2: {len(D2_dgm)}")
+    return [D0_dgm, D1_dgm, D2_dgm]
 
 
-def calc_persistent_diagrams(dataset, files=None, top_net=None, maxdim=2, coeff=2):
+def calc_persistent_diagrams(dataset, file=None, top_net=None, maxdim=2, coeff=2, complex_type="alpha"):
     """
-    Compute persistence diagrams for a dataset of point clouds.
+    Compute persistence diagrams and attach metadata.
 
-    Parameters:
-        dataset (list): List of point cloud arrays.
-        files (list, optional): Corresponding filenames.
-        top_net (list, optional): Topological net labels.
-        maxdim (int): Maximum homology dimension.
-        coeff (int): Field coefficient.
+    Parameters
+    ----------
+    dataset : np.ndarray
+        Input point cloud.
 
-    Returns:
-        list: Tuples of persistence diagrams and metadata for each point cloud.
-    """
-    results = []
+    file : str or None, optional
+        Associated filename.
 
-    for idx, data in enumerate(dataset):
-        filename = files[idx] if files is not None else None
-        net = top_net[idx] if top_net is not None else None
-        print(f"Processing array {idx + 1}/{len(dataset)} with shape {data.shape}")
+    top_net : str or None, optional
+        Optional topology label.
 
-        diagram = process_single_data(data, filename, net, maxdim, coeff)
+    maxdim : int,
+        Maximum homology dimension.
+        Default is 2.
 
-        results.append(diagram)
+    coeff : int, 
+        Homology coefficient field.
+        Default is 2.
+
+    complex_type : str, 
+        Persistence complex type:
+            - "alpha"
+            - "rips"
+        Default is "alpha".
+
+    Returns
+    -------
+    dict
+        Dictionary containing:
+            {"diagram": persistence diagrams, "filename": source filename, "net": topology label (optional)}
+            """
+    
+    print(f"Processing data with shape {dataset.shape}")
+
+    diagram = get_persistent_diagrams(
+        dataset,
+        maxdim=maxdim,
+        coeff=coeff,
+        complex_type=complex_type,
+    )
+
+    results = {
+        "diagram": diagram,
+        "filename": file,
+    }
+
+    if top_net is not None:
+        results["net"] = top_net
 
     print("Processing complete.")
     return results
 
-def build_dataset(files, export_folder="/tmp", clustering='SingleNodes'):
-    """
-    Build a dataset of point clouds and their corresponding topological nets.
-
-    Parameters:
-        files (list): List of .cif files.
-        export_folder (str): Folder to store VTF files.
-        clustering (str): Topology clustering method.
-
-    Returns:
-        tuple: (dataset, top_nets, names)
-            dataset (list of np.ndarray): Point clouds.
-            top_nets (list of str): Predicted topological nets.
-            names (list of str): Filenames.
-    """
-    dataset, top_nets, names = [], [], []
-
-    for filename in files:
-        # Get point cloud data
-        coords, _, result = tp.get_point_cloud(filename, export_folder, clustering=clustering, structure="MOF")
-        if coords is None:
-            print(f"Skipping {filename} due to None result.")
-            continue
-        dataset.append(np.array(coords))
-        top_nets.append(str(result))
-        names.append(filename)
-
-    return dataset, top_nets, names
 
 def save_diagrams(save_file, data):
     """
-    Save persistent diagrams to a pickle file.
+    Save persistence diagrams and metadata to disk.
 
-    Parameters:
-        save_file (str): Path to save pickle file.
-        data (list): Persistence diagrams and metadata.
+    Parameters
+    ----------
+    save_file : str
+        Output pickle filename.
+
+    data : object
+        Python object to serialize.
     """
     with open(save_file, "wb") as f:
         pickle.dump(data, f)
     print(f"Saved persistent diagrams to {save_file}")
 
-def plot_persistent_diagrams(diagram_tuples, export_folder):
-  
-    files, nets, diagrams = zip(*(
-        (t[-2], t[-1], tuple(t[:-2])) for t in diagram_tuples
-    ))
-    files, nets, diagrams = map(list, (files, nets, diagrams))
 
+def plot_persistent_diagrams(diagram_dicts, export_folder):
+    """
+    Plot and export persistence diagrams as PNG images.
+
+    Parameters
+    ----------
+    diagram_dicts : list of dict
+        List of dictionaries containing:
+            {
+                "diagram": persistence diagrams,
+                "filename": source filename
+            }
+
+    export_folder : str
+        Output directory for exported figures.
+    """
     os.makedirs(export_folder, exist_ok=True)
 
-    for file, diagram in zip(files, diagrams):
-        d0, d1, d2 = diagram
+    for item in diagram_dicts:
+        diagrams = item.get("diagram", [])
+        filename = item.get("filename", "unknown")
 
-        # Get finite deaths safely
+        empty = np.empty((0, 2))
+
+        d0 = diagrams[0] if len(diagrams) > 0 and diagrams[0] is not None else empty
+        d1 = diagrams[1] if len(diagrams) > 1 and diagrams[1] is not None else empty
+        d2 = diagrams[2] if len(diagrams) > 2 and diagrams[2] is not None else empty
+
         finite_deaths = []
-        if len(d0) > 0:
-            finite_deaths.extend(d0[:, 1])
-        if len(d1) > 0:
-            finite_deaths.extend(d1[:, 1])
-        max_death = max(finite_deaths) if finite_deaths else 1
 
-        # ---- Plot persistence diagram ----
+        for d in (d0, d1, d2):
+            if isinstance(d, np.ndarray) and d.size > 0:
+                deaths = d[:, 1]
+                deaths = deaths[np.isfinite(deaths)]
+                if deaths.size > 0:
+                    finite_deaths.extend(deaths.tolist())
+
+        max_death = max(finite_deaths) if finite_deaths else 1.0
+
         fig, ax = plt.subplots(figsize=(7, 7))
-
         ax.set_title("Persistence Diagram", fontsize=28, fontweight="bold")
         ax.set_xlabel("Birth", fontsize=26, fontweight="bold")
         ax.set_ylabel("Death", fontsize=26, fontweight="bold")
 
-        ax.tick_params(axis='both', labelsize=24, width=2)
+        ax.tick_params(axis="both", labelsize=24, width=2)
         for label in ax.get_xticklabels() + ax.get_yticklabels():
             label.set_fontweight("bold")
 
         for spine in ax.spines.values():
             spine.set_linewidth(3)
 
-        ax.plot([0, max_death * 1.1], [0, max_death * 1.1], "k--", linewidth=3)
-    
-        if len(d0) > 0:
+        lim = max_death * 1.1
+        ax.plot([0, lim], [0, lim], "k--", linewidth=3)
+
+        if d0.size > 0:
             ax.scatter(d0[:, 0], d0[:, 1], c="#c00000", s=200, label="0D (Connected Components)")
-        if len(d1) > 0:
+        if d1.size > 0:
             ax.scatter(d1[:, 0], d1[:, 1], c="#1f497d", s=200, label="1D (Loops)")
-        if len(d2) > 0:
+        if d2.size > 0:
             ax.scatter(d2[:, 0], d2[:, 1], c="green", s=200, label="2D (Voids)")
 
-        legend = ax.legend(
-            fontsize=14,
-            markerscale=1,
-            frameon=False)
-        
+        legend = ax.legend(fontsize=14, markerscale=1, frameon=False)
         for text in legend.get_texts():
             text.set_fontweight("bold")
-        basename = os.path.basename(file)
+
+        stem = os.path.basename(filename)
+        outpath = os.path.join(export_folder, f"{stem}_persistence_diagram.png")
+
         plt.tight_layout()
-        plt.savefig(f"{export_folder}/{basename}_persistence_diagram.png", dpi=300)
-        plt.close(fig) 
-    return print(f"Saved persistent diagam plots to {export_folder}" )
+        plt.savefig(outpath, dpi=300)
+        plt.close(fig)
+    os.makedirs(export_folder, exist_ok=True)
+    print(f"Saved persistent diagram plots to {export_folder}")
 
 
-def get_persistent_diagrams(dataset, names, top_nets, maxdim=2, coeff=2, save_file=None):
-    """
-    Plot and save persistence diagrams for H0, H1, and H2.
-
-    Parameters:
-        diagram_tuples (list): Tuples of diagrams, filenames, and nets.
-        export_folder (str): Folder to save plots.
-
-    Returns:
-        None
-    """
-    data = calc_persistent_diagrams(dataset, names, top_nets, maxdim=2, coeff=2)
-    if save_file is not None:
-        save_diagrams(save_file, data)
-    
-    return data
