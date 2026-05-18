@@ -5,7 +5,7 @@ This is a fun and computationally efficient Python package for computing persist
 
 ### Prerequisites
 
-**PHuN** requires the [CrystalNets.jl](https://coudertlab.github.io/CrystalNets.jl/dev/python/) Julia interface, which is used to identify and extract the topological nets of crystalline structures.
+**PHuN** requires the [CrystalNets.jl](https://coudertlab.github.io/CrystalNets.jl/dev/) Julia interface, which is used to identify and extract the topological nets of crystalline structures.
 
 ### Install phun_reps using pip
 ```bash
