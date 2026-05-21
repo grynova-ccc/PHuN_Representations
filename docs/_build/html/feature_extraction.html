@@ -1,0 +1,305 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Extracting Features from Persistent Diagrams &mdash; PHuN Representations 2026 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=fc6fd62b"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Computing Persistent Diagrams" href="persistent_homology.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            PHuN Representations
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage_guide.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="point_cloud.html">Determining Point Clouds</a></li>
+<li class="toctree-l1"><a class="reference internal" href="persistent_homology.html">Computing Persistent Diagrams</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Extracting Features from Persistent Diagrams</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#module-phun_reps.feature_extraction">Functions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#phun_reps.feature_extraction.calc_persistence_statistics"><code class="docutils literal notranslate"><span class="pre">calc_persistence_statistics()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#phun_reps.feature_extraction.calc_persistent_image_features"><code class="docutils literal notranslate"><span class="pre">calc_persistent_image_features()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#phun_reps.feature_extraction.create_persistent_images"><code class="docutils literal notranslate"><span class="pre">create_persistent_images()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#phun_reps.feature_extraction.get_max_birth_persistence"><code class="docutils literal notranslate"><span class="pre">get_max_birth_persistence()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#phun_reps.feature_extraction.get_persistent_image_features"><code class="docutils literal notranslate"><span class="pre">get_persistent_image_features()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#phun_reps.feature_extraction.get_persistent_stats_features"><code class="docutils literal notranslate"><span class="pre">get_persistent_stats_features()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">PHuN Representations</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Extracting Features from Persistent Diagrams</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/feature_extraction.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="extracting-features-from-persistent-diagrams">
+<h1>Extracting Features from Persistent Diagrams<a class="headerlink" href="#extracting-features-from-persistent-diagrams" title="Link to this heading"></a></h1>
+<p>Features are generated from the persistent diagrams using the <code class="docutils literal notranslate"><span class="pre">phun_reps.feature_extraction</span></code> module.</p>
+<p>The main function of <code class="docutils literal notranslate"><span class="pre">phun_reps.feature_extraction</span></code> is to take a list of persistent diagrams and
+return a pandas DataFrame containing feature vectors.</p>
+<p>Persistent diagrams can be featurized using either:</p>
+<ul class="simple">
+<li><p>Persistence images, which converts the persistent diagram into a machine-readable image.</p></li>
+<li><p>Persistence statistics, which are a set of summary statistics that capture the overall shape of the persistent diagram, such as the number of points, the average birth and death times, and the maximum persistence.</p></li>
+</ul>
+<p>The features are returned as a pandas DataFrame, where each row corresponds to a persistent diagram and each column corresponds to a feature.
+This module also has functions for visualizing persistence images.</p>
+<section id="module-phun_reps.feature_extraction">
+<span id="functions"></span><h2>Functions<a class="headerlink" href="#module-phun_reps.feature_extraction" title="Link to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="phun_reps.feature_extraction.calc_persistence_statistics">
+<span class="sig-prename descclassname"><span class="pre">phun_reps.feature_extraction.</span></span><span class="sig-name descname"><span class="pre">calc_persistence_statistics</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">diagrams</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#phun_reps.feature_extraction.calc_persistence_statistics" title="Link to this definition"></a></dt>
+<dd><p>Compute summary statistics for each persistence diagram.</p>
+<p>Statistics include:
+- Number of points
+- Total persistence
+- Mean persistence
+- Variance of persistence
+- Maximum persistence
+- Minimum persistence</p>
+<p>for each homology dimension (D1 and D2).
+Parameters
+———-
+diagrams : list</p>
+<blockquote>
+<div><p>List of persistence diagrams.</p>
+</div></blockquote>
+<section id="returns">
+<h3>Returns<a class="headerlink" href="#returns" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>dict</dt><dd><p>Dictionary containing statistical features.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="phun_reps.feature_extraction.calc_persistent_image_features">
+<span class="sig-prename descclassname"><span class="pre">phun_reps.feature_extraction.</span></span><span class="sig-name descname"><span class="pre">calc_persistent_image_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">all_diagrams</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filenames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">export_folder</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_image_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(50,</span> <span class="pre">50)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">savefig</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#phun_reps.feature_extraction.calc_persistent_image_features" title="Link to this definition"></a></dt>
+<dd><p>Compute persistent-image feature vectors for a dataset.</p>
+<section id="parameters">
+<h3>Parameters<a class="headerlink" href="#parameters" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>all_diagrams<span class="classifier">list</span></dt><dd><p>Collection of persistence diagrams.</p>
+</dd>
+<dt>filenames<span class="classifier">list</span></dt><dd><p>Corresponding structure filenames.</p>
+</dd>
+<dt>export_folder<span class="classifier">str or None, optional</span></dt><dd><p>Folder for saving persistent-image plots.</p>
+</dd>
+<dt>output_image_size<span class="classifier">tuple, optional</span></dt><dd><p>Persistent image resolution: (width, height)</p>
+</dd>
+<dt>savefig<span class="classifier">bool, optional</span></dt><dd><p>If True, save persistent-image visualizations.</p>
+</dd>
+</dl>
+</section>
+<section id="id1">
+<h3>Returns<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
+<p>image_feature_vectors, D1_feature_length, D2_feature_length</p>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="phun_reps.feature_extraction.create_persistent_images">
+<span class="sig-prename descclassname"><span class="pre">phun_reps.feature_extraction.</span></span><span class="sig-name descname"><span class="pre">create_persistent_images</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">diagrams</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pimgr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#phun_reps.feature_extraction.create_persistent_images" title="Link to this definition"></a></dt>
+<dd><p>Convert D1 and D2 persistence diagrams into persistent images.</p>
+<section id="id2">
+<h3>Parameters<a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>diagrams<span class="classifier">list</span></dt><dd><dl class="simple">
+<dt>Persistence diagrams in the form:</dt><dd><p>[D0_diagram, D1_diagram, D2_diagram]</p>
+</dd>
+</dl>
+</dd>
+<dt>pimgr<span class="classifier">PersistenceImager</span></dt><dd><p>Configured PersistenceImager object.</p>
+</dd>
+<dt>save_path<span class="classifier">str or None, optional</span></dt><dd><p>If provided, saves a visualization of the persistent images.</p>
+</dd>
+</dl>
+</section>
+<section id="id3">
+<h3>Returns<a class="headerlink" href="#id3" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>tuple</dt><dd><p>(flattened_feature_vector, D1_feature_length, D2_feature_length)</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="phun_reps.feature_extraction.get_max_birth_persistence">
+<span class="sig-prename descclassname"><span class="pre">phun_reps.feature_extraction.</span></span><span class="sig-name descname"><span class="pre">get_max_birth_persistence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">all_diagrams</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#phun_reps.feature_extraction.get_max_birth_persistence" title="Link to this definition"></a></dt>
+<dd><p>Compute global minimum and maximum birth/persistence values
+across all H1 and H2 persistence diagrams.</p>
+<section id="id4">
+<h3>Parameters<a class="headerlink" href="#id4" title="Link to this heading"></a></h3>
+<dl>
+<dt>all_diagrams<span class="classifier">list</span></dt><dd><p>List of persistence diagram collections.
+Each entry is expected to contain:</p>
+<blockquote>
+<div><p>[H0_diagram, H1_diagram, H2_diagram]</p>
+</div></blockquote>
+</dd>
+</dl>
+</section>
+<section id="id5">
+<h3>Returns<a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
+<p>max_birth, min_birth, max_persistence, min_persistence</p>
+</section>
+<section id="notes">
+<h3>Notes<a class="headerlink" href="#notes" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>Persistence is computed as:</dt><dd><p>persistence = death - birth</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="phun_reps.feature_extraction.get_persistent_image_features">
+<span class="sig-prename descclassname"><span class="pre">phun_reps.feature_extraction.</span></span><span class="sig-name descname"><span class="pre">get_persistent_image_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">diagrams_dicts</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(30,</span> <span class="pre">30)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">savefig</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">export_folder</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#phun_reps.feature_extraction.get_persistent_image_features" title="Link to this definition"></a></dt>
+<dd><p>Generate a DataFrame containing persistent-image features.</p>
+<section id="id6">
+<h3>Parameters<a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
+<dl>
+<dt>diagrams_dicts<span class="classifier">list of dict</span></dt><dd><dl class="simple">
+<dt>Each dictionary must contain:</dt><dd><dl class="simple">
+<dt>{“diagram”: persistence_diagrams,</dt><dd><p>“filename”: structure_filename}</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+<dt>output_size<span class="classifier">tuple, </span></dt><dd><dl class="simple">
+<dt>Persistent image resolution:</dt><dd><p>(width, height)</p>
+</dd>
+</dl>
+<p>Default is (30, 30).</p>
+</dd>
+<dt>savefig<span class="classifier">bool, optional</span></dt><dd><p>If True, save persistent-image visualizations.</p>
+</dd>
+<dt>export_folder<span class="classifier">str or None, optional</span></dt><dd><p>Directory used for image export.</p>
+</dd>
+</dl>
+</section>
+<section id="id7">
+<h3>Returns<a class="headerlink" href="#id7" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>pandas.DataFrame</dt><dd><p>Persistent-image feature matrix.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="phun_reps.feature_extraction.get_persistent_stats_features">
+<span class="sig-prename descclassname"><span class="pre">phun_reps.feature_extraction.</span></span><span class="sig-name descname"><span class="pre">get_persistent_stats_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">diagrams_dicts</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#phun_reps.feature_extraction.get_persistent_stats_features" title="Link to this definition"></a></dt>
+<dd><p>Generate persistence-statistics feature table.</p>
+<section id="id8">
+<h3>Parameters<a class="headerlink" href="#id8" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>diagrams_dicts<span class="classifier">list of dict</span></dt><dd><dl class="simple">
+<dt>Each dictionary must contain:</dt><dd><p>{“diagram”: persistence_diagrams}</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+<section id="id9">
+<h3>Returns<a class="headerlink" href="#id9" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>pandas.DataFrame</dt><dd><p>Tabular persistence statistics features.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="persistent_homology.html" class="btn btn-neutral float-left" title="Computing Persistent Diagrams" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Clara Kirkvold.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
