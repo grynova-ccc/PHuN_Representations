@@ -54,13 +54,13 @@ def get_max_birth_persistence(all_diagrams):
 
 def create_persistent_images(diagrams, pimgr, save_path=None):
     """
-    Convert H1 and H2 persistence diagrams into persistent images.
+    Convert D1 and D2 persistence diagrams into persistent images.
 
     Parameters
     ----------
     diagrams : list
         Persistence diagrams in the form:
-            [H0_diagram, H1_diagram, H2_diagram]
+            [D0_diagram, D1_diagram, D2_diagram]
 
     pimgr : PersistenceImager
         Configured PersistenceImager object.
@@ -71,10 +71,10 @@ def create_persistent_images(diagrams, pimgr, save_path=None):
     Returns
     -------
     tuple
-        (flattened_feature_vector, H1_feature_length, H2_feature_length)
+        (flattened_feature_vector, D1_feature_length, D2_feature_length)
     """
 
-    # Extract H1 and H2 persistence diagrams
+    # Extract D1 and D2 persistence diagrams
     _, d1_dgm, d2_dgm = diagrams
 
     # Convert diagrams into persistent image representations
@@ -88,7 +88,7 @@ def create_persistent_images(diagrams, pimgr, save_path=None):
         pimgr.plot_image(d1_img, ax=axs[0])
         axs[0].set_title("D1 Persistent Image")
 
-        # Plot H2 persistent image
+        # Plot D2 persistent image
         pimgr.plot_image(d2_img, ax=axs[1])
         axs[1].set_title("D2 Persistent Image")
 
@@ -97,7 +97,7 @@ def create_persistent_images(diagrams, pimgr, save_path=None):
         plt.savefig(save_path)
         plt.close()
 
-    # Combine H1 and H2 images into a single feature vector
+    # Combine D1 and D2 images into a single feature vector
     img_array = np.vstack([d1_img, d2_img]).ravel()
 
     return (img_array, len(np.vstack(d1_img).ravel()), len(np.vstack(d2_img).ravel()))
@@ -114,6 +114,7 @@ def calc_persistence_statistics(diagrams):
     - Maximum persistence
     - Minimum persistence
 
+    for each homology dimension (D1 and D2).
     Parameters
     ----------
     diagrams : list
@@ -139,7 +140,7 @@ def calc_persistence_statistics(diagrams):
 
             # Compute summary statistics
             vals = [
-                len(persistences),          # Number of topological features
+                len(persistences),          # Number of Points
                 np.sum(persistences),       # Total persistence
                 np.mean(persistences),      # Mean persistence
                 np.var(persistences),       # Variance
@@ -205,7 +206,7 @@ def calc_persistent_image_features(
 
     Returns
     -------
-    image_feature_vectors, H1_feature_length, H2_feature_length
+    image_feature_vectors, D1_feature_length, D2_feature_length
     """
 
     max_birth, min_birth, max_persistence, min_persistence = get_max_birth_persistence(all_diagrams)

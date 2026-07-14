@@ -1,6 +1,6 @@
 import os
 import pickle
-import phun_reps.calc_presistent_diagram as cp
+import phun_reps.calc_persistent_diagram as cp
 import phun_reps.feature_extraction as fe
 import phun_reps.topology as tp
 
@@ -42,7 +42,7 @@ for file in files:
         dataset,
         file=name,
         top_net=top_net,
-        maxdim=2,              # Compute H0, H1, and H2
+        maxdim=2,              # Compute D0, D1, and D2
         coeff=2,               # Z2 coefficients
         complex_type="alpha",  # Alpha complex
     )

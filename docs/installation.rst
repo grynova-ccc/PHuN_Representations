@@ -6,9 +6,9 @@ Prerequisites
 PHuN requires the `CrystalNets.jl Julia interface
 <https://coudertlab.github.io/CrystalNets.jl/dev/python/>`_ Julia interface, which is used to identify and extract the topological nets of crystalline structures.
 
-Installation
+Install
 ^^^^^^^^^^^^
-Once you that Julia and CrystalNets.jl are installed, you can install PHuN representations using pip:
+Once `Julia <https://julialang.org/downloads/>`_ and `CrystalNets.jl <https://coudertlab.github.io/CrystalNets.jl/dev/python/>`_ are installed, you can install PHuN using pip:
 
 .. code-block:: bash
 
@@ -16,7 +16,7 @@ Once you that Julia and CrystalNets.jl are installed, you can install PHuN repre
 
 This package was built and tested with Python 3.10.13.
 
-Dependencies installed automatically include:
+The pip installation will automatically install the required dependencies, which include:
 
 - ``ase==3.26.0``
 - ``Cython==3.2.0``

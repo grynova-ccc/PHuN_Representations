@@ -1,5 +1,5 @@
 # PHuN representations
-This is a fun and computationally efficient Python package for computing persistent homology using nets (PHuN) representations of nanoporous materials. It enables the extraction of topological information for use as machine learning descriptors.
+PHuN Representations and computationally efficient Python package for computing persistent homology using nets (PHuN) representations of nanoporous materials. It enables the extraction of topological information for use as machine learning descriptors.
 
 ## Installation Guide
 
@@ -17,7 +17,7 @@ and will automatically install its dependencies:
 
 ## Usage
 
-**PHuN** provides tools to compute persistent homology diagrams for nanoporous materials using either:
+**PHuN** provides tools to compute persistent homology diagrams for framework materials using either:
 
 * Atomic coordinates
 
@@ -31,7 +31,7 @@ It integrates with [Ripser](https://ripser.scikit-tda.org/en/latest/) and [Gudhi
 
 * Visualize persistence diagrams/images
 
-* Extract vectorized topological descriptors (persistent image features and persistent statistics features
+* Extract vectorized topological descriptors (persistent image features and persistent statistics features)
 
 For a complete example of usage, see the Example Usage section below.
 
@@ -89,13 +89,13 @@ dataset, name = extractor.get_ACPH_points(file, supercell=None)
 
 ### Compute persistent diagrams
 ```python
-import phun_reps.calc_presistent_diagram as cp
+import phun_reps.calc_persistent_diagram as cp
 # Compute persistent homology diagrams from the dataset
  diagrams = cp.calc_persistent_diagrams(
         dataset,
         file=name,
         top_net=top_net,
-        maxdim=2,              # Compute H0, H1, and H2
+        maxdim=2,              # Compute D0, D1, and D2
         coeff=2,               # Z2 coefficients
         complex_type="alpha",  # Alpha complex
     )
